@@ -228,10 +228,21 @@ context."
     (gptel-context--add-region (current-buffer) (point-min) (point-max) t))
   (message "Buffer \"%s\" added to context." (buffer-name buffer)))
 
+(defun gptel-context--get-path (path context-alist)
+  "Check if PATH is already in CONTEXT-ALIST."
+  (cl-loop
+   with path = (file-truename path)
+   for entry in context-alist
+   for source = (or (car-safe entry) entry)
+   when (and (stringp source)
+             (string= path (file-truename source)))
+   return entry))
+
 (defun gptel-context--add-text-file (path context-alist &optional verbose)
   "Add text file at PATH to CONTEXT-ALIST and return it.
 Issue a message if VERBOSE is non-nil."
-  (cl-pushnew (list path) context-alist :test #'equal)
+  (unless (gptel-context--get-path path context-alist)
+    (cl-pushnew (list path) context-alist :test #'equal))
   (if verbose (message "File \"%s\" added to context." path))
   context-alist)
 
@@ -241,8 +252,10 @@ Issue a message if VERBOSE is non-nil."
   (if-let* (((gptel--model-capable-p 'media))
             (mime (mailcap-file-name-to-mime-type path))
             ((gptel--model-mime-capable-p mime)))
-      (progn (cl-pushnew (list path :mime mime) context-alist :test #'equal)
-             (if verbose (message "File \"%s\" added to context." path)))
+      (unless (gptel-context--get-path path context-alist)
+        (progn
+          (cl-pushnew (list path :mime mime) context-alist :test #'equal)
+          (if verbose (message "File \"%s\" added to context." path))))
     (message "Ignoring unsupported binary file \"%s\"." path))
   context-alist)
 
